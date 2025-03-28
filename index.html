@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>音乐播放器</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body onload="init()">
+    <script src="scripts/script.js"></script>
+    <script src="scripts/MusicApi.js"></script>
+    <div id="loading-screen" >
+        <div id="loading-text" >
+            
+        </div>
+    </div>
+    <div id="background">
+        <div id="info-box" class="container">
+            CONTENT
+        </div>
+        <div id="check-box" class="container">
+            <div id="check-title">Confirm</div>
+            <div id="check-content">check content</div>
+            <div id="check-yes" class="clickable">√</div>
+            <div id="check-no" class="clickable" onclick="closeconfirm()">×</div>
+        </div>
+        <div id="login-box" class="container">
+            <div id="login-title">
+                登录
+            </div>
+            <div id="qrbox">
+                <img id="qrimg" src="imgs/logo.png">
+            </div>
+            <div id="login-info">
+                请使用手机扫描二维码登录
+            </div>
+        </div>
+        <div id="topbar" class="container">
+            <div>
+                <img id="logo" src="imgs/logo.png">
+            </div>
+            <div id="title">Celia Music</div>
+            <input id="search" type="text" autocomplete="off" placeholder="Search">
+            <div id="search_button" class="clickable" onclick="search()">
+                <img id="search_img" src="imgs/search_light.png">
+            </div>
+        </div>
+        <div id="sidebar" class="container">
+            <div class="sidebar-element" class="clickable" id="userbox" onclick="login('qrcode')">
+                <div id="userimg">
+                    <img id="avatar" src="imgs/logo.png">
+                </div>
+                <div id="username">
+                    guest
+                </div>
+            </div>
+
+        </div>
+        <div id="main-sections">
+            <div id="section1">
+                <div id="section-goright" onclick="switchsection(1)">
+                    <img id="right-button" src="imgs/right_light.png">
+                </div>
+                <div id="content" class="container">
+                </div>
+            </div>
+            <div id="section2">
+                <div id="section-goleft" class="clickable" onclick="switchsection(0)">
+                    <img id="left-button" class="clickable" src="imgs/left_light.png">
+                </div>
+                <div id="songlists">
+                    <div id="list-header" class="container">
+                        <img id="list-img" src="imgs/logo.png">
+                        <div id="list-name"></div>
+                        <div id="list-info"></div>
+                        </div>
+                    </div>
+                    <div id="list-body" class="container">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="footbar" class="container">
+            <div id="song-cover">
+                <img id="song-img" src="imgs/tempcover.jpg">
+            </div>
+            <div id="song-info">
+                <div id="song-name">
+                    曲名
+                </div>
+                <div id="song-artist">
+                    歌手
+                </div>
+                <div id="duration">
+                    00:00 / 00:00
+                </div>
+            </div>
+            <div id="song-control">
+                <img id="play-button" class="clickable" onclick="musicplay()" src="imgs/play_light.png">
+                <img id="prev-button" class="clickable" onclick="musicprev()" src="imgs/prev_light.png">
+                <img id="next-button" class="clickable" onclick="musicnext()" src="imgs/next_light.png">
+                <img id="sort-switch" class="clickable" onclick="switchsort()" src="imgs/sort_light.png">
+            </div>
+            <div id="volume-control">
+                <img id="volume-button" src="imgs/volume_big_light.png">
+                <input id="volume-slider" class="clickable" type="range" min="0" max="100" value="40">
+            </div>
+            <div id="progress-bar">
+                <div id="progress"></div>
+                <div id="progress-bar-inner"></div>
+            </div>
+        </div>
+    </div>
+</body >
+</html>
