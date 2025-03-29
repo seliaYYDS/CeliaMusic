@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>音乐播放器</title>
+    <title>CELIA MUSIC</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body onload="init()">
@@ -32,6 +32,16 @@
             </div>
             <div id="login-info">
                 请使用手机扫描二维码登录
+            </div>
+        </div>
+        <div id="play-ui">
+            <canvas id="ui-fluid"></canvas>
+            <div id="ui-background">
+                <div id="ui-songname">test</div>
+                <div id="ui-artist">test</div>
+                <div id="ui-lyricbox">
+                    
+                </div>
             </div>
         </div>
         <div id="topbar" class="container">
@@ -80,8 +90,14 @@
             </div>
         </div>
         <div id="footbar" class="container">
+            <div id="pull-up" class="clickable" onclick="playui()">
+                <img id="pull-up-img" src="imgs/up_light.png">
+                
+            </div>
+            <img id="pull-up-img2" src="imgs/up_light.png" class="clickable" onclick="playui()">
             <div id="song-cover">
                 <img id="song-img" src="imgs/tempcover.jpg">
+        
             </div>
             <div id="song-info">
                 <div id="song-name">
@@ -101,7 +117,7 @@
                 <img id="sort-switch" class="clickable" onclick="switchsort()" src="imgs/sort_light.png">
             </div>
             <div id="volume-control">
-                <img id="volume-button" src="imgs/volume_big_light.png">
+                <img id="volume-button" src="imgs/volume_small_light.png">
                 <input id="volume-slider" class="clickable" type="range" min="0" max="100" value="40">
             </div>
             <div id="progress-bar">
