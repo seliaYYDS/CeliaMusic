@@ -1,5 +1,6 @@
 var api="https://zm.armoe.cn"
 var checkIntervalId;
+let lastColorRegions = [];
 var cookie;
 var userdata = {"avatarUrl":"","nickname":"","uid":""};
 var musiclist=[];
@@ -8,15 +9,20 @@ var addstart=null;
 var addend=null;
 var currentmusic=0;
 var music = new Audio();
+var uistate = false;
+let animationFrameId = null;
 var extra = "";
 var sorting = "sort";
 var loadstate = false;
 var stopstate = false;
 var lyricdict = {};
+var lyricoriginal = [];
 var lyrictrans = {};
+var currentlyric = -1;
 music.pause();
 mouseX = 0;
 mouseY = 0;
+music.volume = 0.4;
 
 function init() {
     setloading();
@@ -31,6 +37,15 @@ function init() {
         init2();
     }, 1000);
     initProgressBar();
+    initvolume();
+    //clear click event of imgs
+    var imgs = document.getElementsByTagName("img");
+    for (var i = 0; i < imgs.length; i++) {
+        imgs[i].addEventListener("click", function(event) {
+            event.preventDefault();
+        });
+    }
+    preventdefaultc();
 }
 function init2(){
     if(cookie==null){
@@ -101,8 +116,86 @@ document.addEventListener("keydown", function(event) {
     if (event.key === "Enter") {
         search();
     }
+    if(event.key === "Escape"){
+        closeconfirm();
+    }
+    if(event.key === "ArrowLeft"){
+        if(music.currentTime>5){
+            music.currentTime-=5;
+        }else{
+            music.currentTime=0;
+        }
+    }
+    if(event.key === "ArrowRight"){
+        if(music.currentTime<music.duration-5){
+            music.currentTime+=5; 
+        }
+        else{
+            music.currentTime=music.duration; 
+        }
+    }
+    if(event.key === "ArrowUp"){
+        musicprev();
+    }
+    if(event.key === "ArrowDown"){
+        musicnext();
+    }
+    if(event.key === " "){
+        musicplay();
+    }
 })
+function preventdefaultc() {
+    clickables = document.getElementsByClassName("clickable");
+    for (var i = 0; i < clickables.length; i++) {
+        clickables[i].addEventListener("click", function(event) {
+            event.preventDefault();
+        });
+    }
+}
 
+function playui(){
+    fb = document.getElementById("footbar")
+    pl = document.getElementById("pull-up")
+    ui = document.getElementById("play-ui")
+    pullimg = document.getElementById("pull-up-img")
+    pullimg2 = document.getElementById("pull-up-img2")
+    sinfo = document.getElementById("song-info")
+    cover = document.getElementById("song-cover")
+    sname = document.getElementById("song-name")
+    artist = document.getElementById("song-artist")
+    duration = document.getElementById("duration")
+    songctrl = document.getElementById("song-control")
+    if(uistate==false){
+        initfluid();
+        uistate=true;
+        ui.style.top = "0"; 
+        pl.style.backgroundColor = "rgba(0,0,0,0.5)";
+        pullimg.style.transform="rotateZ(180deg)";
+        pullimg2.style.transform="rotateZ(180deg)";
+        pullimg2.style.opacity="1";
+        cover.style.transform="scale(7)";
+        cover.style.top = "-50vh";
+        cover.style.left = "calc(5vw + 300px)";
+        cover.style.borderRadius="5px";
+        sinfo.style.opacity="0";   
+    }
+    else{
+        uistate=false;
+        ui.style.top = "100%";
+        pullimg.style.transform="";
+        pullimg.style.transform="";
+        pullimg2.style.opacity="0";
+        pl.style.backgroundColor = "rgba(0,0,0,0)";
+        cover.style.transform="";
+        cover.style.top = "calc(100% - 90px + 12.5px";
+        cover.style.left = "2.5px";
+        cover.style.borderRadius="10px";
+        sinfo.style.opacity="1";
+        setTimeout(function(){
+            clearcanvas();
+        },600);
+    }
+}
 function info(info,staytime){
     var infobox=document.getElementById("info-box");
     infobox.innerHTML=info;
@@ -148,6 +241,16 @@ function switchsection(section){
         sec2.style.left=0; 
     }
 }
+//detect window size change
+window.addEventListener("resize", function() {
+    var musicname=document.getElementById("song-name");
+    if(musicname.offsetWidth<400&&musicname.textContent.length>10){
+        musicname.style.animation="marquee 10s linear infinite"
+    }
+    else{
+        musicname.style.animation="none";
+    }
+});
 
 function smoothstop(){
     stopstate=true;
@@ -161,6 +264,19 @@ function smoothstop(){
    document.getElementById("play-button").src="imgs/play_light.png";
    music.volume=savevalue;
    stopstate=false;
+}
+
+function addlyrics(){
+    var lyricbox=document.getElementById("ui-lyricbox");
+    console.log("STARTSA")
+    for(i=0;i<lyricoriginal.length;i++){
+        console.log(lyricoriginal[i]);
+        var lyricc = document.createElement("div");
+        lyricc.classList.add("lyric-element");
+        lyricc.setAttribute("id","l" + i);
+        lyricc.innerHTML = lyricoriginal[i];
+        lyricbox.appendChild(lyricc);
+    }
 }
 
 function addsidebarelement(icon,text,click){
@@ -306,6 +422,7 @@ function addlistelementsmooth(img,name,artist,click,elementid){
     element.classList.add("zoom");
 }
 function parselyric(songid){
+    currentlyric = -1;
     var lyricdict={};
     var xmxl=new XMLHttpRequest();
     xmxl.open("GET",api+"/lyric?id="+songid,true);
@@ -317,8 +434,7 @@ function parselyric(songid){
             var lyrictranss=data.tlyric.lyric;
             var lyricarr=lyric.split("\n");
             var lyrictransarr=lyrictranss.split("\n");
-            for(var i=0;i<lyricarr.length;i++){
-
+            for(var i=0;i<lyricarr.length-1;i++){
                 var time=lyricarr[i].split("]")[0].substring(1);
                 var text=lyricarr[i].split("]")[1];
                 //translate time to seconds
@@ -328,6 +444,7 @@ function parselyric(songid){
                 time=Math.round(time*10)/10;
                 //add to dict
                 lyricdict[time]=text;
+                lyricoriginal[i]=text;
             }
             for(var i=0;i<lyrictransarr.length;i++){
                 var time=lyrictransarr[i].split("]")[0].substring(1);
@@ -346,13 +463,14 @@ function parselyric(songid){
 }
 
 function lyricload(){
-    if(lyricdict==null){
+    if(lyricdict==null||music.paused){
         return;
     }
     //persize currenttime to 0.1
     mtime=Math.round(music.currentTime*10)/10;
     if(lyricdict[mtime]!=undefined){
-        console.log(lyricdict[mtime] + "|" + lyrictrans[mtime]);
+        currentlyric++;
+        console.log(lyricoriginal[currentlyric]);
     }
 }
 function addtolist(songid){
@@ -421,6 +539,11 @@ function musicnext(){
     if(musiclist.length==0){
         return;
     }
+    if(uistate == true){
+        setTimeout(function(){
+            initfluid();
+        },600);
+    }
     if(sorting=="random"){
         var randommusic=Math.floor(Math.random()*musiclist.length);
         postmusic(musiclist[randommusic]);
@@ -443,6 +566,11 @@ function musicnext(){
 function musicprev(){
     if(musiclist.length==0){
         return;
+    }
+    if(uistate == true){
+        setTimeout(function(){
+            initfluid();
+        },600);
     }
     if(sorting=="random"){
         var randommusic=Math.floor(Math.random()*musiclist.length);
@@ -501,23 +629,19 @@ function updateprogress(){
     }
     duration.innerHTML=currentminutes+":"+currentseconds+" / "+durationminutes+":"+durationseconds;
 }
-function updatevolume(){
-    if(stopstate==false){
-        var volume=document.getElementById("volume-slider");
-        if(volume.value==0){
+function initvolume(){
+    document.getElementById("volume-slider").addEventListener("input", function() {
+        if(document.getElementById("volume-slider").value==0){
             document.getElementById("volume-button").src="imgs/mute_light.png";
         }
-        else if(volume.value<50){
+        else if(document.getElementById("volume-slider").value<=50){
             document.getElementById("volume-button").src="imgs/volume_small_light.png";
         }
-        else if(volume.value>=50){
+        else if(document.getElementById("volume-slider").value>=50){
             document.getElementById("volume-button").src="imgs/volume_big_light.png"; 
         }
-        music.volume=volume.value/100;
-    }
-    else{
-        return;
-    }
+        music.volume = this.value / 100;
+    }); 
 }
 
 function setprogress(event) {
@@ -598,6 +722,7 @@ function addtest(){
 
 
 function postmusic(songid){
+    music.currentTime=0;
     lyricdict=parselyric(songid);
     var artists=[];
     var musicname=document.getElementById("song-name");
@@ -632,6 +757,7 @@ function postmusic(songid){
     },500)
 }
 function postlistmusic(songid){
+    music.currentTime=0;
     lyricdict=parselyric(songid);
     var tmp;
     var artists=[];
@@ -656,12 +782,6 @@ function postlistmusic(songid){
         if (xml.readyState == 4 && xml.status == 200) {
             res = JSON.parse(xml.responseText);
             musicname.innerHTML=res.songs[0].name;
-            if(musicname.offsetWidth<400&&res.songs[0].name.length>10){
-                musicname.style.animation="marquee 10s linear infinite"
-            }
-            else{
-                musicname.style.animation="none";
-            }
             for(var i=0;i<res.songs[0].ar.length;i++){
                 artists.push(res.songs[0].ar[i].name);
             }
@@ -952,16 +1072,327 @@ function getuserplaylist(){
     }
 }
 
+function getImageColors(imageUrl, callback, colorCount = 5, sampleSize = 0.1) {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    
+    // 设置超时处理
+    const timeout = setTimeout(() => {
+        console.error('图片加载超时');
+        callback([]);
+        img.onload = img.onerror = null;
+    }, 1000); // 5秒超时
+
+    img.onload = function() {
+        clearTimeout(timeout);
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置取样区域大小
+            const sampleWidth = Math.floor(img.width * sampleSize);
+            const sampleHeight = Math.floor(img.height * sampleSize);
+            canvas.width = sampleWidth;
+            canvas.height = sampleHeight;
+            
+            // 绘制取样区域
+            ctx.drawImage(img, 0, 0, sampleWidth, sampleHeight);
+            
+            // 获取像素数据
+            const pixelData = ctx.getImageData(0, 0, sampleWidth, sampleHeight).data;
+            const colors = [];
+            
+            // 采样颜色
+            const step = Math.floor(pixelData.length / (colorCount * 4));
+            for (let i = 0; i < pixelData.length && colors.length < colorCount; i += step * 4) {
+                const r = pixelData[i];
+                const g = pixelData[i + 1];
+                const b = pixelData[i + 2];
+                const hex = '#' + [r, g, b].map(x => {
+                    const hex = x.toString(16);
+                    return hex.length === 1 ? '0' + hex : hex;
+                }).join('');
+                
+                // 避免重复颜色
+                if (!colors.includes(hex)) {
+                    colors.push(hex);
+                }
+            }
+            
+            callback(colors);
+        } catch (error) {
+            console.error('图片处理错误:', error);
+            callback([]);
+        }
+    };
+    
+    img.onerror = function() {
+        clearTimeout(timeout);
+        console.error('图片加载失败');
+        callback([]);
+    };
+    
+    img.src = imageUrl;
+}
+function drawColorMatrix(colors, blockSize, randomness, speed, smoothness = 0.5) {
+    // 检查颜色数组有效性
+    if (!Array.isArray(colors) || colors.length === 0) {
+        console.error("Invalid colors array.");
+        return;
+    }
+    
+    const canvas = document.getElementById("ui-fluid");
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // 清除画布
+    ctx.clearRect(0, 0, width, height);
+    
+    // 计算行列数
+    const cols = Math.ceil(width / blockSize) + 1;
+    const rows = Math.ceil(height / blockSize) + 1;
+    
+    // 添加区域化控制
+    const regionSize = 8; // 增大区域尺寸
+    const seedCount = Math.max(3, Math.floor(cols * rows / (regionSize * regionSize)));
+    let colorRegions = [];
+    
+    // 初始化颜色区域
+    if (lastColorRegions.length === 0) {
+        // 第一次调用时初始化
+        for (let i = 0; i < seedCount; i++) {
+            const x = Math.floor(Math.random() * cols);
+            const y = Math.floor(Math.random() * rows);
+            const baseColorIndex = Math.floor(Math.random() * colors.length);
+            colorRegions.push({
+                x: x,
+                y: y,
+                colorIndex: baseColorIndex,
+                targetColorIndex: (baseColorIndex + 1) % colors.length,
+                transitionProgress: 0,
+                influenceRadius: 10 + Math.random() * 20
+            });
+        }
+    } else {
+        // 后续调用时复用上一次的区域，只更新颜色
+        colorRegions = lastColorRegions.map(region => ({
+            ...region,
+            colorIndex: region.targetColorIndex, // 使用上一次的目标颜色作为新起点
+            targetColorIndex: Math.floor(Math.random() * colors.length),
+            transitionProgress: 0
+        }));
+    }
+    let colorStates = Array(rows).fill().map(() => 
+        Array(cols).fill().map(() => ({
+            baseIndex: Math.floor(Math.random() * colors.length),
+            targetIndex: Math.floor(Math.random() * colors.length),
+            transitionProgress: 0,
+            offsetX: Math.random() * 100,
+            offsetY: Math.random() * 100
+        }))
+    );
+
+    function getColor(x, y, frameCount) {
+        let finalColor = colors[0];
+        let totalWeight = 0;
+        
+        // 计算所有区域对该点的影响
+        colorRegions.forEach(region => {
+            const dx = x - region.x;
+            const dy = y - region.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance <= region.influenceRadius) {
+                const weight = 1 - (distance / region.influenceRadius);
+                totalWeight += weight;
+                
+                // 计算区域颜色
+                const timeFactor = frameCount * 0.005;
+                const mixRatio = smoothness * (0.5 + 0.5 * Math.sin(timeFactor));
+                const regionColor = mixColors(
+                    colors[region.colorIndex], 
+                    colors[region.targetColorIndex], 
+                    mixRatio * region.transitionProgress
+                );
+                
+                // 混合颜色
+                if (totalWeight === weight) {
+                    finalColor = regionColor;
+                } else {
+                    finalColor = mixColors(finalColor, regionColor, weight / totalWeight);
+                }
+            }
+        });
+        return finalColor;
+    }
+    
+    // 颜色混合函数保持不变
+    function mixColors(color1, color2, ratio) {
+        if (typeof color1 === 'string' && color1.startsWith('#')) {
+            return mixHexColors(color1, color2, ratio);
+        } else {
+            return mixRgbColors(color1, color2, ratio);
+        }
+    }
+    
+    // 16进制颜色混合保持不变
+    function mixHexColors(color1, color2, ratio) {
+        const r1 = parseInt(color1.substring(1, 3), 16);
+        const g1 = parseInt(color1.substring(3, 5), 16);
+        const b1 = parseInt(color1.substring(5, 7), 16);
+        
+        const r2 = parseInt(color2.substring(1, 3), 16);
+        const g2 = parseInt(color2.substring(3, 5), 16);
+        const b2 = parseInt(color2.substring(5, 7), 16);
+        
+        const r = Math.round(r1 * (1 - ratio) + r2 * ratio);
+        const g = Math.round(g1 * (1 - ratio) + g2 * ratio);
+        const b = Math.round(b1 * (1 - ratio) + b2 * ratio);
+        
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    
+    // RGB颜色混合保持不变
+    function mixRgbColors(color1, color2, ratio) {
+        if (typeof color1 === 'string') {
+            color1 = color1.match(/\d+/g).map(Number);
+        }
+        if (typeof color2 === 'string') {
+            color2 = color2.match(/\d+/g).map(Number);
+        }
+        
+        const r = Math.round(color1[0] * (1 - ratio) + color2[0] * ratio);
+        const g = Math.round(color1[1] * (1 - ratio) + color2[1] * ratio);
+        const b = Math.round(color1[2] * (1 - ratio) + color2[2] * ratio);
+        
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    
+    let lastTime = 0;
+    const frameDelay = Math.max(1, 1000 / (speed * 60));
+    let frameCount = 0;
+    
+    function animate(currentTime) {
+        if (!canvas.parentNode) {
+            cancelAnimationFrame(animationFrameId);
+            return;
+        }
+        
+        if (currentTime - lastTime < frameDelay) {
+            animationFrameId = requestAnimationFrame(animate);
+            return;
+        }
+        
+        lastTime = currentTime;
+        frameCount++;
+        
+        // 完全清除画布
+        ctx.clearRect(0, 0, width, height);
+        
+        // 更新颜色区域
+        function animate(currentTime) {
+            if (!canvas.parentNode) return;
+            
+            if (currentTime - lastTime < frameDelay) {
+                requestAnimationFrame(animate);
+                return;
+            }
+            
+            lastTime = currentTime;
+            frameCount++;
+            
+            ctx.clearRect(0, 0, width, height);
+            
+            // 更新颜色区域
+            for (let i = 0; i < colorRegions.length; i++) {
+                const region = colorRegions[i];
+                
+                // 随机决定是否改变目标颜色
+                if (Math.random() < 0.005) {
+                    region.targetColorIndex = Math.floor(Math.random() * colors.length);
+                    region.transitionProgress = 0;
+                }
+                
+                // 更新过渡进度
+                if (region.transitionProgress < 1) {
+                    region.transitionProgress += 0.01;
+                } else {
+                    region.colorIndex = region.targetColorIndex;
+                    region.transitionProgress = 0;
+                }
+            }
+    
+            // 绘制所有方块 - 使用静态模式的平滑方式
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    // 使用randomness参数控制偏移量
+                    const offsetX = Math.sin(currentTime * 0.001 + x * 0.1) * randomness;
+                    const offsetY = Math.cos(currentTime * 0.001 + y * 0.1) * randomness;
+                    
+                    const color = getColor(x, y, frameCount);
+                    ctx.fillStyle = color;
+                    ctx.fillRect(
+                        x * blockSize + offsetX,
+                        y * blockSize + offsetY,
+                        blockSize,
+                        blockSize
+                    );
+                }
+            }
+            animationFrameId = requestAnimationFrame(animate);
+        }
+    }
+    
+    if (speed > 0) {
+        clearcanvas(); // 清除画布
+        animate(0);
+    } else {
+        // 静态绘制模式
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                const color = getColor(x, y, 0);
+                ctx.fillStyle = color;
+                ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+            }
+        }
+    }
+    lastColorRegions = colorRegions;
+}
+
+function clearcanvas(){
+    const canvas = document.getElementById("ui-fluid");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d"); 
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    lastColorRegions = [];
+    // 停止所有动画帧请求
+    cancelAnimationFrame(animationFrameId);
+}
+function initfluid(){
+    clearcanvas();
+    var cover = document.getElementById("song-img").src;
+    getImageColors(cover, function(colors) {
+        if (colors.length > 0) {
+            drawColorMatrix(colors, 3, 0.1,0, 0.6); // 调整参数以适应你的需求 
+        } 
+    },20,0.02); // 调整颜色数量和取样区域大小
+}
+
+
 setInterval(function(){
     checkadd();
     if(music.ended){
         musicnext();
     }
     updateprogress();
-    updatevolume();
     lyricload();
 },100);
 setInterval(function(){
+    document.getElementById("ui-songname").innerHTML=document.getElementById("song-name").textContent;
+    document.getElementById("ui-artist").innerHTML=document.getElementById("song-artist").textContent;
     checkcurrent();
     savenow();
 },1000)
